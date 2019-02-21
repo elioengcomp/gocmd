@@ -2,15 +2,18 @@ package cmd
 
 import (
 	"errors"
-	gofrogcmd "github.com/jfrog/gofrog/io"
-	"github.com/jfrog/jfrog-client-go/utils/errorutils"
-	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
-	"github.com/jfrog/jfrog-client-go/utils/log"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+
+	gofrogcmd "github.com/jfrog/gofrog/io"
+	"github.com/jfrog/jfrog-client-go/utils"
+	"github.com/jfrog/jfrog-client-go/utils/errorutils"
+	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
+	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
 var protocolRegExp *gofrogcmd.CmdOutputPattern
@@ -87,7 +90,28 @@ func DownloadDependency(dependencyName string) error {
 	}
 	log.Debug("Running go mod download -json", dependencyName)
 	goCmd.Command = []string{"mod", "download", "-json", dependencyName}
-	return errorutils.CheckError(gofrogcmd.RunCmd(goCmd))
+
+	retryExecutor := utils.RetryExecutor{
+		MaxRetries:      2,
+		RetriesInterval: 10,
+		ErrorMessage:    "Download module operation timed out",
+		ExecutionHandler: func() (bool, error) {
+			output, err := gofrogcmd.RunCmdOutput(goCmd)
+			if err != nil {
+				// Retry on timeout
+				strOutput := string(output)
+				if strings.Contains(strOutput, "operation timed out") ||
+					strings.Contains(strOutput, "i/o timeout") {
+					return true, err
+				} else {
+					return false, err
+				}
+			}
+			return false, nil
+		},
+	}
+
+	return errorutils.CheckError(retryExecutor.Execute())
 }
 
 // Runs go mod graph command and returns slice of the dependencies
