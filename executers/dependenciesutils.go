@@ -532,7 +532,11 @@ func removeGoSum(path string) error {
 	return nil
 }
 
-func runGoModGraph() (output map[string]bool, err error) {
+func runGoModGraph(path string) (output map[string]bool, err error) {
+	err = os.Chdir(filepath.Dir(path))
+	if errorutils.CheckError(err) != nil {
+		return nil, err
+	}
 	// Running go mod graph command
 	return cmd.GetDependenciesGraph()
 }
