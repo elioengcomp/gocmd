@@ -3,6 +3,14 @@ package executers
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"unicode"
+
 	"github.com/jfrog/gocmd/cache"
 	"github.com/jfrog/gocmd/cmd"
 	"github.com/jfrog/gocmd/executers/utils"
@@ -17,12 +25,6 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils/checksum"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/pkg/errors"
-	"io/ioutil"
-	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
-	"unicode"
 )
 
 const (
@@ -129,7 +131,27 @@ func downloadDependencies(targetRepo string, cache *cache.DependenciesCache, dep
 
 func performHeadRequest(auth auth.ArtifactoryDetails, client *httpclient.HttpClient, targetRepo, module, version string) (*http.Response, error) {
 	url := auth.GetUrl() + "api/go/" + targetRepo + "/" + module + "/@v/" + version + ".mod"
-	resp, _, err := client.SendHead(url, auth.CreateHttpClientDetails())
+	var resp *http.Response
+	var err error
+	retryExecutor := clientutils.RetryExecutor{
+		MaxRetries:      2,
+		RetriesInterval: 10,
+		ErrorMessage:    "Head request timed out",
+		ExecutionHandler: func() (bool, error) {
+			resp, _, err = client.SendHead(url, auth.CreateHttpClientDetails())
+			if err != nil {
+				// Retry on timeout
+				if err, ok := err.(net.Error); ok && err.Timeout() {
+					return true, err
+				} else {
+					return false, err
+				}
+			}
+			return false, nil
+		},
+	}
+
+	err = retryExecutor.Execute()
 	if err != nil {
 		return nil, err
 	}
