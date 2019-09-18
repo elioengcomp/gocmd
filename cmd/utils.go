@@ -55,6 +55,11 @@ func prepareGlobalRegExp() error {
 		unknownRevisionRegExp, err = initRegExp(`[^go:]([^\/\r\n]+\/[^\r\n\s:]*).*(unknown revision)`, Error)
 	}
 
+	if gitFetchErrorRegExp == nil {
+		log.Debug("Initializing git fetch error regexp")
+		gitFetchErrorRegExp, err = initRegExp(`^go: ([^:]+): git fetch .+ (exit status [^0]\d*)`, Error)
+	}
+
 	return err
 }
 
