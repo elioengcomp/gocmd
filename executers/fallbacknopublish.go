@@ -1,6 +1,9 @@
 package executers
 
 import (
+	"net/url"
+	"os"
+
 	"github.com/jfrog/gocmd/cmd"
 	"github.com/jfrog/gocmd/executers/utils"
 	"github.com/jfrog/jfrog-client-go/artifactory"
@@ -8,8 +11,6 @@ import (
 	clientutils "github.com/jfrog/jfrog-client-go/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
-	"net/url"
-	"os"
 )
 
 // Run Go with fallback to VCS without publish
@@ -28,7 +29,7 @@ func RunWithFallback(goArg []string, url string) error {
 
 	if err != nil {
 		log.Info("Received", err.Error(), "from proxy. Trying to download dependencies from VCS...")
-		err := os.Unsetenv(utils.GOPROXY)
+		err := os.Setenv(utils.GOPROXY, "direct")
 		if err != nil {
 			return err
 		}

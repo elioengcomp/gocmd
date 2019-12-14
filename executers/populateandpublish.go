@@ -195,7 +195,7 @@ func (pwd *PackageWithDeps) useCachedMod(path string) error {
 }
 
 func (pwd *PackageWithDeps) getModPathAndUnzipDependency(path string) (string, error) {
-	err := os.Unsetenv(utils.GOPROXY)
+	err := os.Setenv(utils.GOPROXY, "direct")
 	if err != nil {
 		return "", err
 	}

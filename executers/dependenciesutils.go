@@ -218,7 +218,7 @@ func downloadDependency(downloadFromArtifactory bool, fullDependencyName, target
 		err = utils.SetGoProxyWithApi(targetRepo, auth)
 	} else {
 		log.Debug("Downloading dependency from VCS:", fullDependencyName)
-		err = os.Unsetenv(utils.GOPROXY)
+		err = os.Setenv(utils.GOPROXY, "direct")
 	}
 	if errorutils.CheckError(err) != nil {
 		return err
@@ -486,7 +486,7 @@ func setOrUnsetGoProxy(usedProxy bool, targetRepo string, auth auth.ArtifactoryD
 		return utils.SetGoProxyWithApi(targetRepo, auth)
 	} else {
 		log.Debug("Trying download the dependencies from the VCS...")
-		return errorutils.CheckError(os.Unsetenv(utils.GOPROXY))
+		return errorutils.CheckError(os.Setenv(utils.GOPROXY, "direct"))
 	}
 }
 

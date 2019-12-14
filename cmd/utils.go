@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	gofrogio "github.com/jfrog/gofrog/io"
@@ -13,6 +16,10 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
+)
+
+var (
+	moduleEntryInSumFileRegexp = regexp.MustCompile(`([^\s]+) (v[^\/]+)\/go\.mod`)
 )
 
 func prepareRegExp() error {
@@ -123,6 +130,46 @@ func GetSumContentAndRemove(rootProjectDir string) (sumFileContent []byte, sumFi
 	return
 }
 
+func PrintGoSumContent(rootProjectDir string) error {
+	log.Debug("Checking go.sum content")
+	sumFileExists, err := fileutils.IsFileExists(filepath.Join(rootProjectDir, "go.sum"), false)
+	if err != nil {
+		return err
+	}
+	if sumFileExists {
+		sumFileContent, _, err := GetFileDetails(filepath.Join(rootProjectDir, "go.sum"))
+		if err != nil {
+			return err
+		}
+		log.Debug("Sum file content:", string(sumFileContent))
+	}
+	return nil
+}
+
+func FetchModulesFromGoSum(rootProjectDir string) ([]string, error) {
+	log.Debug("Fetching go modules declared in go.sum")
+	var modules []string
+	sumFileExists, err := fileutils.IsFileExists(filepath.Join(rootProjectDir, "go.sum"), false)
+	if err != nil {
+		return nil, err
+	}
+	if sumFileExists {
+		sumFileContent, _, err := GetFileDetails(filepath.Join(rootProjectDir, "go.sum"))
+		if err != nil {
+			return nil, err
+		}
+
+		scanner := bufio.NewScanner(bytes.NewReader(sumFileContent))
+		for scanner.Scan() {
+			matches := moduleEntryInSumFileRegexp.FindStringSubmatch(scanner.Text())
+			if len(matches) > 0 {
+				modules = append(modules, fmt.Sprintf("%s@%s", matches[1], matches[2]))
+			}
+		}
+	}
+	return modules, nil
+}
+
 func RestoreSumFile(rootProjectDir string, sumFileContent []byte, sumFileStat os.FileInfo) error {
 	log.Debug("Restoring file:", filepath.Join(rootProjectDir, "go.sum"))
 	err := ioutil.WriteFile(filepath.Join(rootProjectDir, "go.sum"), sumFileContent, sumFileStat.Mode())
@@ -140,6 +187,14 @@ func GetFileDetails(filePath string) (modFileContent []byte, modFileStat os.File
 	modFileContent, err = ioutil.ReadFile(filePath)
 	errorutils.CheckError(err)
 	return
+}
+
+func modulesToMap(modules []string) map[string]bool {
+	mapOfDeps := map[string]bool{}
+	for _, module := range modules {
+		mapOfDeps[module] = true
+	}
+	return mapOfDeps
 }
 
 func outputToMap(output string, errorOutput string) map[string]bool {

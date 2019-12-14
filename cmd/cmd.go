@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -98,6 +99,7 @@ func DownloadDependency(dependencyName string) error {
 		ErrorMessage:    "Download module operation timed out",
 		ExecutionHandler: func() (bool, error) {
 			output, err := gofrogcmd.RunCmdOutput(goCmd)
+			log.Debug("Download output", output)
 			if err != nil {
 				// Retry on timeout
 				strOutput := string(output)
@@ -149,15 +151,17 @@ func GetDependenciesGraph() (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	output, errorOutput, _, err := gofrogcmd.RunCmdWithOutputParser(goCmd, true, protocolRegExp, notFoundRegExp, unrecognizedImportRegExp, unknownRevisionRegExp, gitFetchErrorRegExp)
-	if len(output) != 0 {
-		log.Debug(output)
-	}
-
+	_, _, _, err = gofrogcmd.RunCmdWithOutputParser(goCmd, true, protocolRegExp, notFoundRegExp, unrecognizedImportRegExp, unknownRevisionRegExp, gitFetchErrorRegExp)
 	if err != nil {
 		// If the command fails, the mod stays the same, therefore, don't need to be restored.
 		return nil, errorutils.CheckError(err)
 	}
+
+	modulesFromGoSum, err := FetchModulesFromGoSum(projectDir)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug(fmt.Sprintf("Modules from go.sum: %+v", modulesFromGoSum))
 
 	// Restore the the go.mod and go.sum files, to make sure they stay the same as before
 	// running the "go mod graph" command.
@@ -166,7 +170,7 @@ func GetDependenciesGraph() (map[string]bool, error) {
 		return nil, err
 	}
 
-	return outputToMap(output, errorOutput), errorutils.CheckError(err)
+	return modulesToMap(modulesFromGoSum), errorutils.CheckError(err)
 }
 
 // Using go mod download command to download all the dependencies before publishing to Artifactory
