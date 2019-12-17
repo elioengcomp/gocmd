@@ -43,7 +43,11 @@ func RecursivePublish(targetRepo, goModEditMessage string, serviceManager *artif
 	if err != nil {
 		return err
 	}
-	collectDependenciesAndPublish(targetRepo, false, pwd, serviceManager)
+	err = collectDependenciesAndPublish(targetRepo, false, pwd, serviceManager)
+	if err != nil {
+		log.Error("Failed to collect dependencies and publish:", err)
+		return err
+	}
 	return nil
 }
 
